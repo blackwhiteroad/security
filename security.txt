@@ -1,0 +1,130 @@
+修改tty登陆的提示信息
+/etc/issue		//本地登陆系统状态信息
+/etc/issue.net	//远程登陆系统状态信息
+]# vim /etc/fstab	//添加额外属性提高性能和安全性
+  9 /dev/mapper/rhel-root   /                       xfs     defaults        0 0
+ 10 UUID=5c5a4dcc-82cd-43dc-906e-90edd827ec46 /boot                   xfs     defaults,noexec        0 0
+ 11 /dev/mapper/rhel-swap   swap
+]# mount -o remount,noexec /boot	//重新挂载,试验用,注意在生产环境的使用
+]# cp /bin/ls /root
+[root@mysql49 ~]# /root/ls
+anaconda-ks.cfg					  mysql-community-embedded-compat-5.7.17-1.el7.x86_64.rpm    公共
+initial-setup-ks.cfg				  mysql-community-embedded-devel-5.7.17-1.el7.x86_64.rpm     模板
+ls						  mysql-community-libs-5.7.17-1.el7.x86_64.rpm		     视频
+mysqlall.bak					  mysql-community-libs-compat-5.7.17-1.el7.x86_64.rpm	     图片
+mysql-community-client-5.7.17-1.el7.x86_64.rpm	  mysql-community-minimal-debuginfo-5.7.17-1.el7.x86_64.rpm  文档
+mysql-community-common-5.7.17-1.el7.x86_64.rpm	  mysql-community-server-5.7.17-1.el7.x86_64.rpm	     下载
+mysql-community-devel-5.7.17-1.el7.x86_64.rpm	  mysql-community-test-5.7.17-1.el7.x86_64.rpm		     音乐
+mysql-community-embedded-5.7.17-1.el7.x86_64.rpm  phpMyAdmin-2.11.11-all-languages.tar.gz		     桌面
+[root@mysql49 ~]# cp /bin/ls /boot/
+[root@mysql49 ~]# /boot/ls
+-bash: /boot/ls: 权限不够
+注释:
+1.noexec属性可以让分区下的所有程序都不执行,包括病毒与木马
+2.noatime让分区下的所有文件都不再更新atime时间,atime时间为文件的访问时间
+3.ctime为文件的创建时间,mtime为文件的修改时间,查阅文件的属性:
+ll --time=atime a.txt
+ll --time=ctime a.txt
+ll --time=mtime a.txt
+
+*修改文件属性相关命令:
+chomod 777 ...
+chown root:root ...
+setfacl 777 ...
+lsattr a.txt
+
+*锁定文件语法格式
+chattr +i 文件名	//锁定文件(无法修改,删除等)
+chattr -i 文件名	//解锁文件
+chattr +a 文件名	//锁定后文件仅可追加
+chattr -a 文件名	//解锁文件
+lsattr 文件名		//查看文件特殊属性
+eg:
+chattr +i /etc/resolv.conf
+chattr +a /etc/hosts
+
+*允许softadm管理系统服务的权限
+[root@mysql49 ~]# useradd softadm
+[root@mysql49 ~]# visudo	//或vim /etc/sudoers 修改文件后需要强制保存
+     92 root    ALL=(ALL)       ALL
+     93 softadm ALL=(ALL)       /usr/bin/systemctl,/usr/bin/yum,!/usr/bin/passwd root,/usr/bin/passwd,/usr/sbin/user*,!/usr/sbin/user* * root
+	  //授权softadm以root身份执行systemctl命令(ALL包括root),!表示取反
+[root@mysql49 ~]# which systemctl	//查看systemctl所在目录位置
+/bin/systemctl
+[softadm@mysql49 ~]$ sudo systemctl start htppd
+[softadm@mysql49 ~]$ sudo yum -y install gcc	//通过sudo启动服务成功,不能缺少sudo指令
+
+*允许useradm通过sudo方式添加/删除/修改除root以外的用户账号
+[root@mysql49 ~]# useradd useradm
+[root@mysql49 ~]# passwd useradm
+[root@mysql49 ~]# visudo
+     92 root    ALL=(ALL)       ALL
+     93 softadm ALL=(ALL)       /usr/bin/systemctl,/usr/bin/yum,!/usr/bin/passwd root,/usr/bin/passwd,/usr/sbin/user*,!/usr/sbin/user*
+     94 useradm ALL=(ALL)       /usr/bin/systemctl,/usr/bin/yum,!/usr/bin/passwd root,/usr/sbin/user*,!/usr/sbin/user* * root	//不可以修改root的密码
+[useradm@mysql49 ~]# sudo useradd newuser1
+[useradm@mysql49 ~]# sudo passwd newuser1
+[newuser1@mysql49 ~]$ sudo yum -y install gcc
+
+*允许wheel组成员以特权执行所有命令
+[root@mysql49 ~]# visudo
+%wheel  ALL=(ALL)       ALL
+[root@mysql49 ~]# usermod -a -G wheel softadm	//把softadm放入wheel组中
+[root@mysql49 ~]# su - softadm
+上一次登录：六 12月 15 14:02:30 CST 2018pts/0 上
+[softadm@mysql49 ~]$ sudo passwd root
+[sudo] softadm 的密码：
+更改用户 root 的密码 。
+新的 密码：
+无效的密码： 密码少于 8 个字符
+重新输入新的 密码：
+passwd：所有的身份验证令牌已经成功更新。
+
+*为sudo机制启用日志记录,以便跟踪sudo执行操作
+[root@mysql49 ~]# visudo
+22 Defaults logfile="/var/log/sudo"
+[root@mysql49 ~]# cat -n /var/log/sudo
+cat: /var/log/sudo: 没有那个文件或目录
+[root@mysql49 ~]# su - softadm
+上一次登录：六 12月 15 14:47:32 CST 2018pts/0 上
+[softadm@mysql49 ~]$ sudo yum -y install php-mysql
+[sudo] softadm 的密码：
+已加载插件：langpacks, product-id, search-disabled-repos, subscription-manager
+This system is not registered with an entitlement server. You can use subscription-manager to register.
+软件包 php-mysql-5.4.16-42.el7.x86_64 已安装并且是最新版本
+无须任何处理
+[softadm@mysql49 ~]$ exit
+登出
+[root@mysql49 ~]# cat -n /var/log/sudo
+     1	Dec 15 14:53:49 : softadm : TTY=pts/0 ; PWD=/home/softadm ; USER=root ;
+     2	    COMMAND=/bin/yum -y install php-mysql
+
+*配置基本安全策略
+[root@mysql49 ~]# vim /etc/ssh/sshd_config
+22 Protocol 2			//SSH协议
+38 PermitRootLogin no		//#PermitRootLogin yes源	//禁止root用户登陆
+64 PermitEmptyPasswords no	//禁止密码为空的用户登陆
+115 UseDNS no			//不解析客户机地址
+37 LoginGraceTime 2m		//登陆限时
+40 MaxAuthTries 6			//每连接最多认证次数
+[root@mysql49 ~]# ssh root@192.168.4.49	//登陆失败,已被禁
+[root@mysql49 ~]# ssh softadm@192.168.4.49	//softadm成功登陆
+*黑白名单设置
+[root@mysql49 ~]# vim /etc/ssh/sshd_config
+AllowUsers softadm useradm@192.168.4.0/24	//定义账户白名单
+#DenyUsers newuser1@192.168.4.0/24		//定义账户黑名单
+DenyGroups wheel					//定义账户组白名单
+#AllowGroups wheel					//定义账户组黑名单
+[root@mysql49 ~]# systemctl restart sshd	//重启sshd
+
+
+
+
+
+
+
+
+
+
+
+
+
